@@ -1,0 +1,106 @@
+CREATE TABLE Areas (
+    ID_Area INT PRIMARY KEY,
+    Nome_Area VARCHAR(100) UNIQUE
+);
+
+CREATE TABLE Cursos (
+    ID_Curso INT PRIMARY KEY,
+    Nome_Curso VARCHAR(200),
+    ID_Area INT,
+    CONSTRAINT fk_area_curso FOREIGN KEY (ID_Area) REFERENCES Areas(ID_Area)
+);
+
+CREATE TABLE Alunos (
+    ID_Aluno INT PRIMARY KEY,
+    Nome VARCHAR(100),
+    Sobrenome VARCHAR(100),
+    Email VARCHAR(200) UNIQUE
+);
+
+CREATE TABLE Matriculas (
+    ID_Matricula INT PRIMARY KEY,
+    ID_Aluno INT,
+    ID_Curso INT,
+    Data_Matricula DATE DEFAULT CURRENT_DATE,
+    CONSTRAINT fk_aluno_matricula FOREIGN KEY (ID_Aluno) REFERENCES Alunos(ID_Aluno),
+    CONSTRAINT fk_curso_matricula FOREIGN KEY (ID_Curso) REFERENCES Cursos(ID_Curso),
+    CONSTRAINT uq_aluno_curso UNIQUE (ID_Aluno, ID_Curso)
+);
+
+-- Inserção de dados na tabela Areas
+INSERT INTO Areas (ID_Area, Nome_Area) VALUES (1, 'Ciências da Computação');
+INSERT INTO Areas (ID_Area, Nome_Area) VALUES (2, 'Engenharia');
+INSERT INTO Areas (ID_Area, Nome_Area) VALUES (3, 'Administração');
+
+-- Inserção de dados na tabela Cursos
+INSERT INTO Cursos (ID_Curso, Nome_Curso, ID_Area) VALUES (1, 'Bacharelado em Ciência da Computação', 1);
+INSERT INTO Cursos (ID_Curso, Nome_Curso, ID_Area) VALUES (2, 'Engenharia Elétrica', 2);
+INSERT INTO Cursos (ID_Curso, Nome_Curso, ID_Area) VALUES (3, 'Administração de Empresas', 3);
+
+-- Inserção de dados na tabela Alunos
+INSERT INTO Alunos (ID_Aluno, Nome, Sobrenome, Email) VALUES (1, 'Jorge', 'Pedro', 'jorge@dominio.com');
+INSERT INTO Alunos (ID_Aluno, Nome, Sobrenome, Email) VALUES (2, 'Sandro', 'LEme', 'sandro@dominio.com');
+INSERT INTO Alunos (ID_Aluno, Nome, Sobrenome, Email) VALUES (3, 'Costa', 'Ferreira', 'costa@dominio.com');
+
+-- Inserção de dados na tabela Matriculas (exemplo de matrícula de alunos em cursos)
+INSERT INTO Matriculas (ID_Matricula, ID_Aluno, ID_Curso, Data_Matricula) VALUES (1, 1, 1, CURRENT_DATE);
+INSERT INTO Matriculas (ID_Matricula, ID_Aluno, ID_Curso, Data_Matricula) VALUES (2, 2, 2, CURRENT_DATE);
+INSERT INTO Matriculas (ID_Matricula, ID_Aluno, ID_Curso, Data_Matricula) VALUES (3, 3, 3, CURRENT_DATE);
+
+DELIMITER //
+
+CREATE PROCEDURE InserirCurso (
+    p_Nome_Curso VARCHAR(200),
+    p_ID_Area INT
+)
+BEGIN
+    INSERT INTO Cursos (ID_Curso, Nome_Curso, ID_Area)
+    VALUES (NULL, p_Nome_Curso, p_ID_Area);
+END //
+
+DELIMITER ;
+
+CREATE FUNCTION BuscarIDCurso (
+    p_Nome_Curso VARCHAR(200),
+    p_Nome_Area VARCHAR(100)
+)
+RETURNS INT
+BEGIN
+    DECLARE v_ID_Curso INT;
+    
+    SELECT c.ID_Curso INTO v_ID_Curso
+    FROM Cursos c
+    INNER JOIN Areas a ON c.ID_Area = a.ID_Area
+    WHERE c.Nome_Curso = p_Nome_Curso AND a.Nome_Area = p_Nome_Area;
+    
+    RETURN v_ID_Curso;
+END //
+
+CREATE PROCEDURE MatricularAluno (
+    p_ID_Aluno INT,
+    p_Nome_Curso VARCHAR(200),
+    p_Nome_Area VARCHAR(100)
+)
+BEGIN
+    DECLARE v_ID_Curso INT;
+    
+    SET v_ID_Curso = BuscarIDCurso(p_Nome_Curso, p_Nome_Area);
+
+    IF v_ID_Curso IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM Matriculas
+            WHERE ID_Aluno = p_ID_Aluno AND ID_Curso = v_ID_Curso
+        ) THEN
+            INSERT INTO Matriculas (ID_Matricula, ID_Aluno, ID_Curso)
+            VALUES (NULL, p_ID_Aluno, v_ID_Curso);
+        ELSE
+            -- Ação a ser tomada se o aluno já estiver matriculado
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Aluno já matriculado no curso';
+        END IF;
+    ELSE
+        -- Ação a ser tomada se o curso não for encontrado
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Curso não encontrado';
+    END IF;
+END //
+
